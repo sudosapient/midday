@@ -1,15 +1,21 @@
 import { Card } from "@midday/ui/card";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ManageSubscription } from "@/components/manage-subscription";
 import { Orders } from "@/components/orders";
 import { getQueryClient, prefetch, trpc } from "@/trpc/server";
+import { isCompanyDeployment } from "@/utils/deployment-mode";
 
 export const metadata: Metadata = {
   title: "Billing | Midday",
 };
 
 export default async function Billing() {
+  if (isCompanyDeployment()) {
+    redirect("/settings");
+  }
+
   const queryClient = getQueryClient();
   const user = await queryClient.fetchQuery(trpc.user.me.queryOptions());
 

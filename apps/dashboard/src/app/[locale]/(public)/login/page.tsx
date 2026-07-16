@@ -10,6 +10,7 @@ import { OAuthSignIn } from "@/components/oauth-sign-in";
 import { OTPSignIn } from "@/components/otp-sign-in";
 import { SunsetBanner } from "@/components/sunset-banner";
 import { Cookies } from "@/utils/constants";
+import { hasHostedWindDownBehavior } from "@/utils/deployment-mode";
 import { isBlockedNewUser } from "@/utils/new-user-gate";
 
 export const metadata: Metadata = {
@@ -17,11 +18,11 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ waitlist?: string }>;
+  searchParams: Promise<{ error?: string; waitlist?: string }>;
 };
 
 export default async function Page({ searchParams }: Props) {
-  const { waitlist: waitlistParam } = await searchParams;
+  const { error: errorParam, waitlist: waitlistParam } = await searchParams;
   const cookieStore = await cookies();
   const preferred = cookieStore.get(Cookies.PreferredSignInProvider);
   const { device } = userAgent({ headers: await headers() });
@@ -30,8 +31,11 @@ export default async function Page({ searchParams }: Props) {
   const {
     data: { user: authUser },
   } = await supabase.auth.getUser();
+  const showHostedWindDown = hasHostedWindDownBehavior();
   const showQueueNotice =
-    waitlistParam === "1" || isBlockedNewUser(authUser?.created_at);
+    showHostedWindDown &&
+    (waitlistParam === "1" || isBlockedNewUser(authUser?.created_at));
+  const showAuthError = errorParam === "oauth";
 
   let moreSignInOptions = null;
   let preferredSignInOption =
@@ -144,7 +148,7 @@ export default async function Page({ searchParams }: Props) {
     <div className="min-h-screen bg-background flex relative">
       {/* Sunset banner + logo - Fixed position matching website header exactly */}
       <div className="fixed top-0 left-0 right-0 z-50 w-full">
-        <SunsetBanner />
+        {showHostedWindDown && <SunsetBanner />}
         <nav className="w-full pointer-events-none">
           <div className="relative py-3 xl:py-4 px-4 sm:px-4 md:px-4 lg:px-4 xl:px-6 2xl:px-8 flex items-center">
             <Link
@@ -187,6 +191,14 @@ export default async function Page({ searchParams }: Props) {
                   <p className="font-sans text-sm text-[#878787]">
                     Sign in or create an account
                   </p>
+                  {showAuthError && (
+                    <p
+                      className="font-sans text-sm text-destructive"
+                      role="alert"
+                    >
+                      We couldn't complete sign in. Please try again.
+                    </p>
+                  )}
                 </div>
 
                 {/* Sign In Options */}

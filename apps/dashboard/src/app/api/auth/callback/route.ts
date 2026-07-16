@@ -11,6 +11,7 @@ import { getTRPCClient } from "@/trpc/server";
 import { Cookies } from "@/utils/constants";
 import { getUrl } from "@/utils/environment";
 import { isBlockedNewUser } from "@/utils/new-user-gate";
+import { normalizeRedirectPath } from "@/utils/redirect-path";
 
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
@@ -20,6 +21,11 @@ export async function GET(req: NextRequest) {
   const client = requestUrl.searchParams.get("client");
   const returnTo = requestUrl.searchParams.get("return_to");
   const provider = requestUrl.searchParams.get("provider");
+  const callbackError = requestUrl.searchParams.get("error");
+
+  if (callbackError) {
+    return NextResponse.redirect(`${origin}/login?error=oauth`);
+  }
 
   if (client === "desktop") {
     return NextResponse.redirect(`${origin}/verify?code=${code}`);
@@ -33,67 +39,72 @@ export async function GET(req: NextRequest) {
 
   if (code) {
     const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
+
+    if (exchangeError) {
+      return NextResponse.redirect(`${origin}/login?error=oauth`);
+    }
 
     const {
       data: { session },
     } = await getSession();
 
-    if (session) {
-      if (isBlockedNewUser(session.user.created_at)) {
-        await supabase.auth.signOut();
-        return NextResponse.redirect(`${origin}/login?waitlist=1`);
-      }
+    if (!session) {
+      return NextResponse.redirect(`${origin}/login?error=oauth`);
+    }
 
-      // Set cookie to force primary database reads for subsequent client-side
-      // requests after redirect. This prevents replication lag issues when the
-      // user record hasn't replicated to read replicas yet.
-      cookieStore.set(Cookies.ForcePrimary, "true", {
-        expires: addSeconds(new Date(), 30),
-        httpOnly: false, // Needs to be readable by client-side tRPC
-        sameSite: "lax",
-      });
+    if (isBlockedNewUser(session.user.created_at)) {
+      await supabase.auth.signOut();
+      return NextResponse.redirect(`${origin}/login?waitlist=1`);
+    }
 
-      // If user is redirected from an invite, redirect to teams page to accept/decline the invite
-      if (returnTo?.startsWith("teams/invite/")) {
-        const analytics = await setupAnalytics();
-        analytics.track({
-          event: LogEvents.SignIn.name,
-          channel: LogEvents.SignIn.channel,
-          provider: provider ?? "unknown",
-          destination: "teams",
-        });
+    // Set cookie to force primary database reads for subsequent client-side
+    // requests after redirect. This prevents replication lag issues when the
+    // user record hasn't replicated to read replicas yet.
+    cookieStore.set(Cookies.ForcePrimary, "true", {
+      expires: addSeconds(new Date(), 30),
+      httpOnly: false, // Needs to be readable by client-side tRPC
+      sameSite: "lax",
+    });
 
-        return NextResponse.redirect(`${origin}/teams`);
-      }
-
-      // Explicitly force primary reads for this query -- the user may have
-      // just been created and not yet replicated to read replicas.
-      const trpcClient = await getTRPCClient({ forcePrimary: true });
-      const user = await trpcClient.user.me.query();
-
-      const isOnboarding = !user?.fullName || !user.teamId;
+    // If user is redirected from an invite, redirect to teams page to accept/decline the invite
+    if (returnTo?.startsWith("teams/invite/")) {
       const analytics = await setupAnalytics();
-
       analytics.track({
         event: LogEvents.SignIn.name,
         channel: LogEvents.SignIn.channel,
         provider: provider ?? "unknown",
-        destination: isOnboarding ? "onboarding" : "dashboard",
+        destination: "teams",
       });
 
-      if (isOnboarding) {
-        return NextResponse.redirect(`${origin}/onboarding`);
-      }
+      return NextResponse.redirect(`${origin}/teams`);
+    }
+
+    // Explicitly force primary reads for this query -- the user may have
+    // just been created and not yet replicated to read replicas.
+    const trpcClient = await getTRPCClient({ forcePrimary: true });
+    const user = await trpcClient.user.me.query();
+
+    const isOnboarding = !user?.fullName || !user.teamId;
+    const analytics = await setupAnalytics();
+
+    analytics.track({
+      event: LogEvents.SignIn.name,
+      channel: LogEvents.SignIn.channel,
+      provider: provider ?? "unknown",
+      destination: isOnboarding ? "onboarding" : "dashboard",
+    });
+
+    if (isOnboarding) {
+      return NextResponse.redirect(`${origin}/onboarding`);
     }
   }
 
   if (returnTo) {
-    // The middleware strips the leading "/" (e.g. "settings/accounts"),
-    // but sanitizeRedirectPath requires a root-relative path starting with "/".
-    const normalized = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
+    const normalized = normalizeRedirectPath(returnTo);
     const safePath = sanitizeRedirectPath(normalized);
-    return NextResponse.redirect(`${origin}${safePath}`);
+    return NextResponse.redirect(new URL(safePath, origin));
   }
 
   return NextResponse.redirect(origin);

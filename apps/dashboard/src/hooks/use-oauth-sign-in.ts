@@ -2,6 +2,7 @@
 
 import { isDesktopApp } from "@midday/desktop-client/platform";
 import { createClient } from "@midday/supabase/client";
+import { useToast } from "@midday/ui/use-toast";
 import type { Provider } from "@supabase/supabase-js";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -48,6 +49,7 @@ const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
 };
 
 export function useOAuthSignIn(provider: OAuthProvider) {
+  const { toast } = useToast();
   const [isLoading, setLoading] = useState(false);
   const supabase = createClient();
   const searchParams = useSearchParams();
@@ -72,18 +74,33 @@ export function useOAuthSignIn(provider: OAuthProvider) {
       ? { ...config.queryParams, client: "desktop" }
       : config.queryParams;
 
-    await supabase.auth.signInWithOAuth({
-      provider: provider as Provider,
-      options: {
-        redirectTo: redirectTo.toString(),
-        scopes: config.scopes,
-        queryParams,
-      },
-    });
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider as Provider,
+        options: {
+          redirectTo: redirectTo.toString(),
+          scopes: config.scopes,
+          queryParams,
+        },
+      });
 
-    setTimeout(() => {
+      if (error) {
+        throw error;
+      }
+
+      setTimeout(() => {
+        setLoading(false);
+      }, 2000);
+    } catch (error) {
       setLoading(false);
-    }, 2000);
+      toast({
+        duration: 3500,
+        variant: "error",
+        title: `Unable to sign in with ${config.name}`,
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+    }
   };
 
   return { handleSignIn, isLoading, config };

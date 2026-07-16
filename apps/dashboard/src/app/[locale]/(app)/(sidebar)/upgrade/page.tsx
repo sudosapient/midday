@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { isCompanyDeployment } from "@/utils/deployment-mode";
 
 export const metadata: Metadata = {
   title: "Midday is joining Ramp",
 };
 
 export default function UpgradePage() {
+  if (isCompanyDeployment()) {
+    redirect("/");
+  }
+
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-200px)] md:py-6 md:-ml-8">
       <div className="w-full max-w-[640px] p-8 text-center">

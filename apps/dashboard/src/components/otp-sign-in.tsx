@@ -14,12 +14,14 @@ import { Input } from "@midday/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@midday/ui/input-otp";
 import { Spinner } from "@midday/ui/spinner";
 import { SubmitButton } from "@midday/ui/submit-button";
+import { useToast } from "@midday/ui/use-toast";
 import { useSearchParams } from "next/navigation";
 import { useAction } from "next-safe-action/hooks";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v3";
 import { verifyOtpAction } from "@/actions/verify-otp-action";
+import { normalizeRedirectPath } from "@/utils/redirect-path";
 
 const formSchema = z.object({
   email: z
@@ -35,11 +37,22 @@ type Props = {
 };
 
 export function OTPSignIn({ className }: Props) {
-  const verifyOtp = useAction(verifyOtpAction);
+  const { toast } = useToast();
   const [isLoading, setLoading] = useState(false);
   const [isSent, setSent] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [email, setEmail] = useState<string>();
+  const verifyOtp = useAction(verifyOtpAction, {
+    onError: () => {
+      setIsVerifying(false);
+      toast({
+        duration: 3500,
+        variant: "error",
+        title: "Unable to verify code",
+        description: "Check the code and try again.",
+      });
+    },
+  });
   const supabase = createClient();
   const searchParams = useSearchParams();
 
@@ -53,12 +66,31 @@ export function OTPSignIn({ className }: Props) {
   async function onSubmit({ email }: z.infer<typeof formSchema>) {
     setLoading(true);
 
-    setEmail(email);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ email });
 
-    await supabase.auth.signInWithOtp({ email });
+      if (error) {
+        toast({
+          duration: 3500,
+          variant: "error",
+          title: "Unable to send code",
+          description: error.message,
+        });
+        return;
+      }
 
-    setSent(true);
-    setLoading(false);
+      setEmail(email);
+      setSent(true);
+    } catch {
+      toast({
+        duration: 3500,
+        variant: "error",
+        title: "Unable to send code",
+        description: "Please try again.",
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function onComplete(token: string) {
@@ -69,7 +101,7 @@ export function OTPSignIn({ className }: Props) {
     verifyOtp.execute({
       token,
       email,
-      redirectTo: `${window.location.origin}/${searchParams.get("return_to") || ""}`,
+      redirectTo: normalizeRedirectPath(searchParams.get("return_to")),
     });
   }
 

@@ -1,0 +1,1 @@
+-- Local development starts with an empty Midday workspace.
