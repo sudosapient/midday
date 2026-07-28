@@ -39,6 +39,67 @@ Midday is an all-in-one tool designed to help freelancers, contractors, consulta
 
 We are working on the documentation to get started with Midday for local development: https://docs.midday.ai
 
+## Supabase deployment modes
+
+Midday can run against either a local Supabase stack or a hosted Supabase
+project. A hybrid development setup is also supported, where the Midday
+dashboard, API, worker, and Redis run locally while Auth, Postgres, Storage,
+and Realtime are provided by Supabase Cloud.
+
+### Fully local
+
+The provided `compose.local.yml` is configured for Supabase CLI containers
+started with `supabase start`. In this mode, Midday and Supabase communicate
+over the external `supabase_network_midday-mod` Docker network while the
+browser uses the host-facing Supabase URL at `http://127.0.0.1:54321`.
+
+### Local application with Supabase Cloud
+
+The application code supports a hosted Supabase project. Configure the public
+and server URLs to use the hosted project, along with its Postgres and
+S3-compatible Storage credentials:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://PROJECT_REF.supabase.co
+SUPABASE_URL=https://PROJECT_REF.supabase.co
+SUPABASE_INTERNAL_URL=https://PROJECT_REF.supabase.co
+SUPABASE_AUTH_ISSUER=https://PROJECT_REF.supabase.co/auth/v1
+
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+SUPABASE_SECRET_KEY=...
+
+DATABASE_PRIMARY_URL=postgresql://...
+DATABASE_PRIMARY_POOLER_URL=postgresql://...
+DATABASE_SESSION_POOLER=postgresql://...
+DATABASE_SSL_DISABLED=false
+
+R2_ENDPOINT=https://PROJECT_REF.supabase.co/storage/v1/s3
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=apps
+```
+
+The hosted project must have the Midday database migrations, RLS policies,
+Realtime publication configuration, Storage buckets, and Storage policies
+applied before starting the application.
+
+> [!IMPORTANT]
+> Treat Supabase as one logical unit. Auth, Postgres, Realtime, Storage, API
+> URLs, and credentials should all belong to the same Supabase project. Mixing
+> local Auth with a cloud database, or using Storage from another project, is
+> not supported.
+
+`NEXT_PUBLIC_*` variables are embedded in the dashboard at build time, so the
+dashboard image must be rebuilt when changing the Supabase URL or publishable
+key. Secret keys, database credentials, and S3 secret keys must never be
+exposed through `NEXT_PUBLIC_*` variables.
+
+The current `compose.local.yml` intentionally hardcodes local Supabase
+addresses and disables database TLS. To use Supabase Cloud with Docker
+Compose, provide a Compose override that replaces those values and rebuild the
+dashboard. Setting cloud values only in `.env.compose.local` is insufficient
+because values declared directly in `compose.local.yml` take precedence.
+
 ## App Architecture
 
 - Monorepo
