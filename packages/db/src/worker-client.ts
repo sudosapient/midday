@@ -5,6 +5,7 @@ import type { Database } from "./client";
 import * as schema from "./schema";
 
 const isDevelopment = process.env.NODE_ENV === "development";
+const isSslDisabled = process.env.DATABASE_SSL_DISABLED === "true";
 const logger = createLoggerWithContext("db:worker");
 const DB_POOL_EVENT_LOGGING = process.env.DB_POOL_EVENT_LOGGING === "true";
 
@@ -28,7 +29,7 @@ const workerPool = new Pool({
   maxUses: isDevelopment ? 200 : 3000,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10_000,
-  ssl: isDevelopment ? false : { rejectUnauthorized: false },
+  ssl: isDevelopment || isSslDisabled ? false : { rejectUnauthorized: false },
   allowExitOnIdle: true,
 });
 

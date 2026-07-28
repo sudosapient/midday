@@ -9,6 +9,8 @@ RUN bun add -g turbo
 FROM turbo-cli AS builder
 WORKDIR /app
 COPY . .
+# CI stamps this before build; ensure it exists so the runtime COPY never fails.
+RUN touch .git-commit-sha
 RUN turbo prune @midday/api --docker
 
 # Installer stage - install deps and build
@@ -39,7 +41,8 @@ COPY --from=installer /app/apps/api ./apps/api
 COPY --from=installer /app/packages ./packages
 COPY --from=installer /app/package.json ./package.json
 
-# Carry the git SHA into the runtime container (stamped by CI before `railway up`)
+# Carry the git SHA into the runtime container (stamped by CI before `railway up`).
+# The builder stage guarantees the file exists, so this never fails locally.
 COPY --from=builder /app/.git-commit-sha /tmp/git-sha.txt
 COPY --from=builder /app/scripts/docker-entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

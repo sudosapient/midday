@@ -260,7 +260,10 @@ export function openaiProbe(): Dependency {
     probe: async () => {
       const key = process.env.OPENAI_API_KEY;
       if (!key) return false;
-      const res = await fetch("https://api.openai.com/v1/models?limit=1", {
+      const baseUrl = (
+        process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1"
+      ).replace(/\/$/, "");
+      const res = await fetch(`${baseUrl}/models?limit=1`, {
         headers: { Authorization: `Bearer ${key}` },
         signal: AbortSignal.timeout(5_000),
       });

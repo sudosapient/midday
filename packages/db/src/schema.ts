@@ -1157,7 +1157,9 @@ export const exchangeRates = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     base: text(),
-    rate: numericCasted({ precision: 10, scale: 2 }),
+    // FX rates need far more than 2dp: USD->VND is ~0.0000395 and would
+    // round to 0.00 at scale 2, while JPY/KRW pairs lose meaningful digits.
+    rate: numericCasted({ precision: 20, scale: 10 }),
     target: text(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
   },

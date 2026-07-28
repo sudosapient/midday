@@ -104,7 +104,7 @@ export class ContentGenerator {
 
   constructor(options: ContentGeneratorOptions = {}) {
     // gpt-4.1-mini: best instruction following + cost efficiency for text generation
-    this.model = options.model ?? "gpt-4.1-mini";
+    this.model = options.model || process.env.OPENAI_MODEL || "gpt-4.1-mini";
   }
 
   /**

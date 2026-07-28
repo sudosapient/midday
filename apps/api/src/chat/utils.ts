@@ -75,7 +75,7 @@ export async function generateChatTitle(
   if (!trimmed) return null;
 
   const { output: result } = await generateText({
-    model: openai("gpt-4o-mini"),
+    model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
     output: Output.object({ schema: titleSchema }),
     prompt: `Generate a concise 3-5 word title for this conversation.\n\nUser: ${trimmed}`,
   });

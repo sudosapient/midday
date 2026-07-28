@@ -19,7 +19,7 @@ export const getTaxRateAction = authActionClient
     const country = await getCountry();
 
     const { object } = await generateObject({
-      model: openai("gpt-5-nano"),
+      model: openai(process.env.OPENAI_MODEL || "gpt-5-nano"),
       schema: z.object({
         taxRate: z.number().min(5).max(50),
       }),

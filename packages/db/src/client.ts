@@ -12,6 +12,7 @@ const logger = createLoggerWithContext("db");
 
 const isDevelopment = process.env.NODE_ENV === "development";
 const isProduction = process.env.RAILWAY_ENVIRONMENT_NAME === "production";
+const isSslDisabled = process.env.DATABASE_SSL_DISABLED === "true";
 const DEBUG_PERF = process.env.DEBUG_PERF === "true";
 const DB_POOL_EVENT_LOGGING = process.env.DB_POOL_EVENT_LOGGING === "true";
 
@@ -24,7 +25,7 @@ const connectionConfig = {
   allowExitOnIdle: !isProduction,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10_000,
-  ssl: isDevelopment ? false : { rejectUnauthorized: false },
+  ssl: isDevelopment || isSslDisabled ? false : { rejectUnauthorized: false },
 };
 
 const drizzleLogger = DEBUG_PERF ? createDrizzleLogger() : undefined;

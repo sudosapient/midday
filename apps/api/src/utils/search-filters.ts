@@ -68,7 +68,12 @@ export async function generateLLMFilters(
   query: string,
 ): Promise<z.infer<typeof schema>> {
   const { object } = await generateObject({
-    model: openai("gpt-4o-mini"),
+    model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
+    providerOptions: {
+      openai: {
+        strictJsonSchema: false,
+      },
+    },
     system: `You are an AI assistant that converts natural language search queries into structured search filters.
 
 Current date: ${new Date().toISOString().split("T")[0]}

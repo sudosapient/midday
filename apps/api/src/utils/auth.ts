@@ -10,6 +10,7 @@ export type Session = {
 };
 
 type SupabaseJWTPayload = JWTPayload & {
+  role?: string;
   user_metadata?: {
     email?: string;
     full_name?: string;
@@ -17,23 +18,43 @@ type SupabaseJWTPayload = JWTPayload & {
   };
 };
 
-// Primary: verify via JWKS (asymmetric ES256/RS256). jose caches the
-// keyset in memory so only the first call hits the network.
-const JWKS = createRemoteJWKSet(
-  new URL(`${process.env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`),
-);
+if (!process.env.SUPABASE_URL) {
+  throw new Error("SUPABASE_URL is required to verify access tokens");
+}
 
-// Fallback: HS256 shared secret for tokens issued before key rotation.
-// Remove this once the legacy JWT secret is revoked in Supabase.
-const HS256_SECRET = process.env.SUPABASE_JWT_SECRET
-  ? new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET)
-  : null;
+// Supabase signs tokens with the browser-facing auth URL as `iss`. In a local
+// container deployment the API reaches Supabase over Docker networking, while
+// tokens still carry the host URL (for example http://127.0.0.1:54321/auth/v1).
+// Keep those concerns separate rather than weakening issuer verification.
+const ISSUER =
+  process.env.SUPABASE_AUTH_ISSUER ??
+  `${process.env.SUPABASE_URL.replace(/\/+$/, "")}/auth/v1`;
 
-function extractSession(payload: JWTPayload): Session {
+const JWKS_URL = `${process.env.SUPABASE_URL.replace(/\/+$/, "")}/auth/v1/.well-known/jwks.json`;
+
+// Verify via JWKS only (asymmetric ES256/RS256). jose caches the keyset in
+// memory so only the first call hits the network. There is deliberately no
+// HS256 shared-secret fallback: SUPABASE_JWT_SECRET is a symmetric key that
+// anyone who can read it can also *sign* with, so accepting HS256 here would
+// turn a leaked secret into full token forgery for any `sub`.
+const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
+
+function extractSession(payload: JWTPayload): Session | null {
   const p = payload as SupabaseJWTPayload;
+
+  // `sub` is the user id. Without it there is no identity to act as.
+  if (typeof p.sub !== "string" || p.sub.length === 0) {
+    return null;
+  }
+
+  // Reject anon/service tokens: only end-user sessions may act as a user.
+  if (p.role !== "authenticated") {
+    return null;
+  }
+
   return {
     user: {
-      id: p.sub!,
+      id: p.sub,
       email: p.user_metadata?.email,
       full_name: p.user_metadata?.full_name,
     },
@@ -46,20 +67,13 @@ export async function verifyAccessToken(
   if (!accessToken) return null;
 
   try {
-    const { payload } = await jwtVerify(accessToken, JWKS);
+    const { payload } = await jwtVerify(accessToken, JWKS, {
+      issuer: ISSUER,
+      audience: "authenticated",
+      algorithms: ["RS256", "ES256"],
+    });
     return extractSession(payload);
   } catch {
-    // JWKS verification failed -- try HS256 fallback if configured.
+    return null;
   }
-
-  if (HS256_SECRET) {
-    try {
-      const { payload } = await jwtVerify(accessToken, HS256_SECRET);
-      return extractSession(payload);
-    } catch {
-      // Both methods failed.
-    }
-  }
-
-  return null;
 }

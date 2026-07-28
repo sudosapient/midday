@@ -4,13 +4,20 @@ interface ImageLoaderParams {
   quality?: number;
 }
 
-const CDN_URL = "https://midday.ai";
+// Cloudflare image-resizing CDN. Self-hosted deployments have no such CDN, so
+// this is opt-in: when unset every image is served directly from its origin.
+const CDN_URL = process.env.NEXT_PUBLIC_CDN_URL;
+const APP_URL = process.env.NEXT_PUBLIC_URL ?? "";
 
 export default function imageLoader({
   src,
   width,
   quality = 80,
 }: ImageLoaderParams): string {
+  if (!CDN_URL) {
+    return src;
+  }
+
   // Handle authenticated API URLs (preserve query parameters like fk token)
   if (src.includes("/files/proxy")) {
     // Parse URL to preserve query parameters
@@ -36,7 +43,7 @@ export default function imageLoader({
 
   // Existing logic for other URLs
   if (src.startsWith("/_next")) {
-    return `${CDN_URL}/cdn-cgi/image/width=${width},quality=${quality}/https://app.midday.ai${src}`;
+    return `${CDN_URL}/cdn-cgi/image/width=${width},quality=${quality}/${APP_URL}${src}`;
   }
   return `${CDN_URL}/cdn-cgi/image/width=${width},quality=${quality}/${src}`;
 }

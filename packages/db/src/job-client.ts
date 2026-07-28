@@ -4,6 +4,7 @@ import type { Database } from "./client";
 import * as schema from "./schema";
 
 const isDevelopment = process.env.NODE_ENV === "development";
+const isSslDisabled = process.env.DATABASE_SSL_DISABLED === "true";
 
 /**
  * Creates a new job-optimized database instance.
@@ -19,6 +20,7 @@ export const createJobDb = () => {
     connectionTimeoutMillis: 15000,
     maxUses: 0,
     allowExitOnIdle: true,
+    ssl: isDevelopment || isSslDisabled ? false : { rejectUnauthorized: false },
   });
 
   const db = drizzle(jobPool, {

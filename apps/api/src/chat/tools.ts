@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import type { MCPClient } from "@ai-sdk/mcp";
 import { createMCPClient } from "@ai-sdk/mcp";
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createMcpServer } from "@api/mcp/server";
 import type { McpContext } from "@api/mcp/types";
 import { expandScopes } from "@api/utils/scopes";
@@ -16,6 +17,23 @@ type ToolDefinitions = Awaited<ReturnType<MCPClient["listTools"]>>;
 let cachedDefinitions: ToolDefinitions | null = null;
 let cachedIndex: ToolIndex<any> | null = null;
 let inflightIndexPromise: Promise<ToolIndex<any>> | null = null;
+
+const embeddingModelName =
+  process.env.OPENAI_EMBEDDING_MODEL?.trim() || "text-embedding-3-small";
+const separateEmbeddingBaseUrl =
+  process.env.OPENAI_EMBEDDING_BASE_URL?.trim() || undefined;
+const embeddingBaseUrl =
+  separateEmbeddingBaseUrl || process.env.OPENAI_BASE_URL?.trim() || undefined;
+const embeddingProvider = createOpenAI({
+  apiKey:
+    process.env.OPENAI_EMBEDDING_API_KEY?.trim() ||
+    (separateEmbeddingBaseUrl ? "ollama" : process.env.OPENAI_API_KEY),
+  baseURL: embeddingBaseUrl,
+});
+const embeddingCacheKey =
+  `${embeddingBaseUrl ?? "openai"}-${embeddingModelName}`
+    .replace(/^https?:\/\//, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_");
 
 async function bootstrapTools(ctx: McpContext) {
   const mcpServer = createMcpServer(ctx);
@@ -43,10 +61,20 @@ export function ensureToolIndex(ctx: McpContext): Promise<ToolIndex<any>> {
   inflightIndexPromise = (async () => {
     const { definitions, tools } = await bootstrapTools(ctx);
     cachedDefinitions = definitions;
+    const toolCatalogHash = createHash("sha256")
+      .update(
+        JSON.stringify(
+          [...definitions.tools].sort((a, b) => a.name.localeCompare(b.name)),
+        ),
+      )
+      .digest("hex")
+      .slice(0, 12);
 
     const index = await createToolIndex(tools, {
-      embeddingModel: openai.embeddingModel("text-embedding-3-small"),
-      embeddingCache: fileCache(".toolpick-cache.json"),
+      embeddingModel: embeddingProvider.embeddingModel(embeddingModelName),
+      embeddingCache: fileCache(
+        `.toolpick-cache.${embeddingCacheKey}.${toolCatalogHash}.json`,
+      ),
       relatedTools: {
         invoices_create: ["customers_list"],
         invoices_create_from_tracker: ["customers_list"],

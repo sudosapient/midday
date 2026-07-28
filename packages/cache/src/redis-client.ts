@@ -197,7 +197,11 @@ export class RedisCache {
   async healthCheck(): Promise<void> {
     const start = performance.now();
     try {
-      await withTimeout(this.redis.send("PING", []), "PING");
+      const redis = this.redis;
+      if (!redis.connected && !(await waitForRedisReady())) {
+        throw new Error("Redis connection is not ready");
+      }
+      await withTimeout(redis.send("PING", []), "PING");
       const elapsed = performance.now() - start;
       logger.info("Health check OK", { latencyMs: Math.round(elapsed) });
     } catch (error) {

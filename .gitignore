@@ -91,4 +91,4 @@ dist-ssr
 .matching-eval-history.json
 
 # Toolpick embedding cache (auto-generated on first boot)
-.toolpick-cache.json
+.toolpick-cache*.json

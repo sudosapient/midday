@@ -14,6 +14,7 @@ import {
   smoothStream,
   stepCountIs,
   ToolLoopAgent,
+  type ToolSet,
 } from "ai";
 
 export async function streamMiddayAssistant(params: {
@@ -40,6 +41,17 @@ export async function streamMiddayAssistant(params: {
   try {
     const mcpTools = resolvedClient.toolsFromDefinitions(getToolDefinitions());
     const composioToolNames = Object.keys(composioMetaTools);
+    const webSearchTools: ToolSet = {};
+    if (process.env.OPENAI_ENABLE_WEB_SEARCH !== "false") {
+      webSearchTools.web_search = openai.tools.webSearch({
+        searchContextSize: "medium",
+        userLocation: {
+          type: "approximate",
+          country: mcpCtx.countryCode ?? undefined,
+          timezone: mcpCtx.timezone ?? undefined,
+        },
+      });
+    }
 
     if (composioToolNames.length > 0) {
       logger.info("[chat] Composio tools available:", {
@@ -48,24 +60,21 @@ export async function streamMiddayAssistant(params: {
     }
 
     const agent = new ToolLoopAgent({
-      model: openai("gpt-4.1-mini"),
+      model: openai(process.env.OPENAI_MODEL || "gpt-4.1-mini"),
       instructions: systemPrompt,
       tools: {
         ...mcpTools,
         ...composioMetaTools,
+        ...webSearchTools,
         search_tools: getSearchTool(),
-        web_search: openai.tools.webSearch({
-          searchContextSize: "medium",
-          userLocation: {
-            type: "approximate",
-            country: mcpCtx.countryCode ?? undefined,
-            timezone: mcpCtx.timezone ?? undefined,
-          },
-        }),
       },
       prepareStep: buildPrepareStep({
         maxTools: 12,
-        alwaysActive: ["web_search", "search_tools", ...composioToolNames],
+        alwaysActive: [
+          ...Object.keys(webSearchTools),
+          "search_tools",
+          ...composioToolNames,
+        ],
       }),
       stopWhen: stepCountIs(10),
       onFinish: closeClient,

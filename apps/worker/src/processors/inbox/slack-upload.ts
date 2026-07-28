@@ -365,7 +365,7 @@ export class SlackUploadProcessor extends BaseProcessor<SlackUploadPayload> {
 Focus on what was purchased (e.g., "office supplies", "software subscription", "restaurant meal", "equipment") rather than repeating vendor name, date, or amount. Be specific and helpful for expense tracking. Keep it under 15 words.`;
 
             const summaryResult = await generateText({
-              model: openai("gpt-4o-mini"),
+              model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
               messages: [
                 {
                   role: "user",

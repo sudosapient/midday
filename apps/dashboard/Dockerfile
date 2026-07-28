@@ -10,6 +10,8 @@ FROM turbo-cli AS builder
 WORKDIR /app
 # Copy all files
 COPY . .
+# CI stamps this before build; ensure it exists so the runtime COPY never fails.
+RUN touch .git-commit-sha
 # Prune dashboard workspace
 RUN turbo prune @midday/dashboard --docker
 
@@ -33,7 +35,6 @@ COPY --from=builder /app/out/full/ .
 # Build-time NEXT_PUBLIC_ env vars (Railway passes these as build args)
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ARG NEXT_PUBLIC_SUPABASE_ID
 ARG NEXT_PUBLIC_URL
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_OPENPANEL_CLIENT_ID
