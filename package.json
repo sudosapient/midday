@@ -16,6 +16,7 @@
     "dev:api": "turbo dev --filter=@midday/api",
     "dev:dashboard": "turbo dev --filter=@midday/dashboard",
     "dev:local": "turbo dev --filter=@midday/api --filter=@midday/dashboard",
+    "validate:cloud-supabase": "bun --env-file=.env.compose.cloud.local scripts/validate-cloud-supabase.ts",
     "build:dashboard": "turbo build --filter=@midday/dashboard",
     "dev:website": "turbo dev --filter=@midday/website ",
     "dev:desktop": "turbo dev --filter=@midday/desktop",

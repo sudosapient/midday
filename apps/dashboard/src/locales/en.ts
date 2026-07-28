@@ -367,7 +367,7 @@ export default {
     refunded: "Refunded",
   },
   payment_status: {
-    none: "Unknown",
+    none: "No payment history",
     good: "Good",
     average: "Average",
     bad: "Bad",

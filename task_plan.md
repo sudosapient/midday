@@ -45,3 +45,38 @@ Build and run Midday's API, dashboard, worker, and Redis as real local container
 - Authenticated API access, Storage REST, Storage S3, BullMQ execution, scheduled worker jobs, and all three database client variants were exercised successfully.
 - Realtime delivers team-owned activity inserts and does not deliver them to another authenticated team.
 - Trigger.dev, hosted R2, and optional external provider delivery remain excluded by design.
+
+## Follow-up: Invoice, UI Issues, and Cloud Supabase
+
+### Goal
+
+Make invoice creation and empty states reliable, remove the confirmed onboarding
+console warnings and actionable client errors, add a safe Cloud Supabase Compose
+mode, and verify the changes through automated checks and browser testing.
+
+### Phases
+
+1. **Publish verified baseline** — complete
+   - Commit and push the auth-cookie fix and Supabase deployment documentation.
+2. **Parallel diagnosis** — complete
+   - Diagnose invoice routing/empty-state behavior, onboarding warnings, and Cloud
+     Supabase configuration independently.
+3. **Test-first fixes** — complete
+   - Add failing regression tests, implement the smallest fixes, and run focused
+     package checks.
+4. **Cloud Supabase verification** — blocked on hosted credentials
+   - Add a Compose override and validate it against a real hosted project when
+     credentials are available; otherwise validate configuration statically and
+     report the exact credential blocker.
+5. **Browser regression pass** — complete
+   - Re-test invoices, onboarding, session persistence, console/network errors,
+     and key workflows on desktop and mobile.
+6. **Publish final changes** — pending user request
+   - Review the diff, commit, push to `sudosapient/midday-mod`, and report residual
+     risks.
+
+### Follow-up Errors
+
+| Error | Resolution |
+|---|---|
+| Initial push rejected with HTTP 403 under `sabari8956` | Switched to the configured `sudosapient` account, pushed commit `25caa7fa9`, then restored `sabari8956`. |

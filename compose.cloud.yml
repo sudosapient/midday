@@ -1,0 +1,55 @@
+x-cloud-environment: &cloud-environment
+  DATABASE_PRIMARY_URL: ${DATABASE_PRIMARY_URL:?set in .env.compose.cloud.local}
+  DATABASE_PRIMARY_POOLER_URL: ${DATABASE_PRIMARY_POOLER_URL:?set in .env.compose.cloud.local}
+  DATABASE_SESSION_POOLER: ${DATABASE_SESSION_POOLER:?set in .env.compose.cloud.local}
+  DATABASE_SSL_DISABLED: "false"
+  SUPABASE_URL: ${SUPABASE_URL:?set in .env.compose.cloud.local}
+  SUPABASE_INTERNAL_URL: ${SUPABASE_INTERNAL_URL:?set in .env.compose.cloud.local}
+  SUPABASE_AUTH_ISSUER: ${SUPABASE_AUTH_ISSUER:?set in .env.compose.cloud.local}
+  NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set in .env.compose.cloud.local}
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?set in .env.compose.cloud.local}
+  SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?set in .env.compose.cloud.local}
+  R2_ENDPOINT: ${R2_ENDPOINT:?set in .env.compose.cloud.local}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?set in .env.compose.cloud.local}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?set in .env.compose.cloud.local}
+  R2_BUCKET_NAME: ${R2_BUCKET_NAME:-apps}
+
+services:
+  api:
+    env_file: !override
+      - .env.compose.local
+    environment:
+      <<: *cloud-environment
+
+  worker:
+    env_file: !override
+      - .env.compose.local
+    environment:
+      <<: *cloud-environment
+
+  dashboard:
+    build:
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set in .env.compose.cloud.local}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?set in .env.compose.cloud.local}
+    env_file: !override
+      - .env.compose.local
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?set in .env.compose.cloud.local}
+      SUPABASE_INTERNAL_URL: ${SUPABASE_INTERNAL_URL:?set in .env.compose.cloud.local}
+      SUPABASE_AUTH_ISSUER: ${SUPABASE_AUTH_ISSUER:?set in .env.compose.cloud.local}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set in .env.compose.cloud.local}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?set in .env.compose.cloud.local}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?set in .env.compose.cloud.local}
+      DATABASE_PRIMARY_URL: ""
+      DATABASE_PRIMARY_POOLER_URL: ""
+      DATABASE_SESSION_POOLER: ""
+      R2_ENDPOINT: ""
+      R2_ACCESS_KEY_ID: ""
+      R2_SECRET_ACCESS_KEY: ""
+      R2_BUCKET_NAME: ""
+
+networks:
+  supabase:
+    external: false
+    name: midday-cloud

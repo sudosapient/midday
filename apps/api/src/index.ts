@@ -25,6 +25,7 @@ import { createTRPCContext } from "./trpc/init";
 import { appRouter } from "./trpc/routers/_app";
 import { httpLogger } from "./utils/logger";
 import { getRequestTrace } from "./utils/request-trace";
+import { getTRPCErrorMetadata } from "./utils/trpc-error";
 
 const app = new OpenAPIHono<Context>();
 
@@ -103,10 +104,17 @@ app.use(
   trpcServer({
     router: appRouter,
     createContext: createTRPCContext,
-    onError: ({ error, path, input }) => {
+    onError: ({ error, path, ctx }) => {
+      const metadata = getTRPCErrorMetadata({
+        path,
+        code: error.code,
+        requestId: ctx?.requestId,
+        cfRay: ctx?.cfRay,
+      });
+
       logger.error(`[tRPC] ${path}`, {
         message: error.message,
-        code: error.code,
+        ...metadata,
         cause: error.cause instanceof Error ? error.cause.message : undefined,
         stack: error.stack,
       });
@@ -114,11 +122,8 @@ app.use(
       // Send to Sentry (skip client errors like NOT_FOUND, UNAUTHORIZED)
       if (error.code === "INTERNAL_SERVER_ERROR") {
         Sentry.captureException(error, {
-          tags: { source: "trpc", path: path ?? "unknown" },
-          extra: {
-            input:
-              typeof input === "object" ? JSON.stringify(input) : undefined,
-          },
+          tags: { source: "trpc", path: metadata.path, code: metadata.code },
+          extra: metadata,
         });
       }
     },

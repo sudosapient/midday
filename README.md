@@ -73,7 +73,7 @@ DATABASE_PRIMARY_POOLER_URL=postgresql://...
 DATABASE_SESSION_POOLER=postgresql://...
 DATABASE_SSL_DISABLED=false
 
-R2_ENDPOINT=https://PROJECT_REF.supabase.co/storage/v1/s3
+R2_ENDPOINT=https://PROJECT_REF.storage.supabase.co/storage/v1/s3
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
 R2_BUCKET_NAME=apps
@@ -95,10 +95,28 @@ key. Secret keys, database credentials, and S3 secret keys must never be
 exposed through `NEXT_PUBLIC_*` variables.
 
 The current `compose.local.yml` intentionally hardcodes local Supabase
-addresses and disables database TLS. To use Supabase Cloud with Docker
-Compose, provide a Compose override that replaces those values and rebuild the
-dashboard. Setting cloud values only in `.env.compose.local` is insufficient
-because values declared directly in `compose.local.yml` take precedence.
+addresses and disables database TLS. Use the provided `compose.cloud.yml`
+override and a private `.env.compose.cloud.local` created from
+`.env.compose.cloud.example`:
+
+```bash
+bun run validate:cloud-supabase
+
+docker compose \
+  --env-file .env.compose.local \
+  --env-file .env.compose.cloud.local \
+  -f compose.local.yml \
+  -f compose.cloud.yml \
+  up -d --build
+```
+
+Cloud mode requires Docker Compose 2.24.4 or newer and does not require
+`supabase start`. The dashboard is rebuilt because public Supabase variables
+are embedded at build time. Before first use, provision the Midday schema in a
+disposable hosted project, then apply the Supabase migrations for Auth,
+Storage, RLS, and Realtime. The repository does not yet provide a single
+non-destructive baseline migration for an existing production database, so do
+not run an unattended schema push against a project containing valuable data.
 
 ## App Architecture
 

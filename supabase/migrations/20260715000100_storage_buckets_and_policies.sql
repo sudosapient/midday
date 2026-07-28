@@ -127,6 +127,9 @@ DROP POLICY IF EXISTS apps_public_select ON storage.objects;
 DROP POLICY IF EXISTS apps_insert_own_path ON storage.objects;
 DROP POLICY IF EXISTS apps_update_own_path ON storage.objects;
 DROP POLICY IF EXISTS apps_delete_own_path ON storage.objects;
+DROP POLICY IF EXISTS apps_insert_logos ON storage.objects;
+DROP POLICY IF EXISTS apps_update_logos ON storage.objects;
+DROP POLICY IF EXISTS apps_delete_logos ON storage.objects;
 
 CREATE POLICY apps_public_select ON storage.objects
   FOR SELECT USING (bucket_id = 'apps');

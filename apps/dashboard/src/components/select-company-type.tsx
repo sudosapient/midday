@@ -5,6 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@midday/ui/select";
+import { normalizeSelectValue } from "@/utils/form-ui";
 
 const companyTypeOptions = [
   { value: "freelancer", label: "Freelancer / Consultant" },
@@ -27,7 +28,7 @@ type Props = {
 
 export function SelectCompanyType({ value, onChange, className }: Props) {
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={normalizeSelectValue(value)} onValueChange={onChange}>
       <SelectTrigger className={className}>
         <SelectValue placeholder="Select one" />
       </SelectTrigger>

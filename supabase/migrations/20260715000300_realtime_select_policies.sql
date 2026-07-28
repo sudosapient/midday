@@ -27,6 +27,14 @@
 -- before RLS is ever consulted. Both halves are required.
 
 -- customers, transactions, documents, inbox, insights: plain team scoping.
+-- Remove the legacy unrestricted SELECT policies used by older hosted setups.
+-- PostgreSQL OR-combines permissive policies, so leaving one in place would
+-- make the scoped policy below ineffective for authenticated users.
+DROP POLICY IF EXISTS "Documents can be selected by a member of the team" ON public.documents;
+DROP POLICY IF EXISTS "Inbox can be selected by a member of the team" ON public.inbox;
+DROP POLICY IF EXISTS "Team members can view their insights" ON public.insights;
+DROP POLICY IF EXISTS "Transactions can be selected by a member of the team" ON public.transactions;
+
 DO $$
 DECLARE
   target_table text;

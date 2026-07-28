@@ -17,3 +17,20 @@
 - The `supabase_realtime` publication and authenticated SELECT/RLS policies cover the six dashboard-subscribed tables: `activities`, `customers`, `documents`, `inbox`, `insights`, and `transactions`.
 - The primary API DB pool, worker DB pool, and one-shot job DB client all query local Supabase Postgres successfully with the explicit SSL opt-out.
 - The final stack is operational without Trigger.dev or hosted R2. Optional bot, Composio, and external messaging delivery still require real provider credentials and were not exercised.
+- Browser QA completed onboarding successfully after the auth-cookie fix and
+  found no reproducible 401, 403, 500, or CORS failures in tested core flows.
+- The invoices empty state renders `Unknown`; direct navigation to
+  `/invoices/new` redirects to `/`, so invoice creation needs focused diagnosis.
+- Onboarding emits React warnings that a Select changes from uncontrolled to
+  controlled. One generic `TRPCClientError` was observed without a correlated
+  failed request or visible breakage.
+- Cloud Supabase URLs are supported by the application clients, but the current
+  `compose.local.yml` overrides env-file values with local-only networking and
+  TLS settings. A separate override is needed for safe switching and testing.
+- Hosted database URLs can share a pooler hostname, so project identity must be
+  checked from either the `postgres.PROJECT_REF` username or a project-specific
+  database hostname rather than the hostname alone.
+- The first final-QA OTP request returned 504 because Docker DNS briefly failed
+  to resolve `supabase_db_midday-mod`; an immediate retry returned 200 and
+  delivered the OTP, confirming an infrastructure transient rather than a form
+  regression.

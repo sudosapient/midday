@@ -25,3 +25,23 @@
 - Verified authenticated Realtime delivery for a team-owned `activities` insert and cross-team isolation with a second authenticated subscriber receiving zero events.
 - Confirmed all disposable Realtime users, teams, and activity rows were cleaned up.
 - Completed the full local-container integration plan. Remaining exclusions are Trigger.dev, hosted R2, and optional external provider delivery requiring real credentials.
+- Browser QA verified OTP auth, onboarding, customer CRUD, Inbox upload/delete,
+  session persistence, and responsive core pages. It found an invoice empty-state
+  `Unknown` label and onboarding controlled/uncontrolled Select warnings.
+- Added and verified a shared Supabase auth-cookie name derived from the public
+  Supabase host, documented local/cloud deployment modes, committed as
+  `25caa7fa9`, and pushed to `sudosapient/midday-mod` `main`.
+- Started the follow-up phase for invoices, UI warnings, and hosted Supabase
+  verification with parallel diagnosis before test-first implementation.
+- Added tested fixes for the invoice payment-history copy, the `/invoices/new`
+  alias, controlled onboarding Select values, and correlation-only tRPC error
+  metadata.
+- Added a hosted Supabase Compose override, secret-free environment template,
+  and validator that loads `.env.compose.cloud.local`, rejects local or mixed
+  database/endpoints, and does not expose credentials in errors.
+- Rebuilt the API and dashboard production images; both containers are healthy
+  and the Next.js route manifest includes `/[locale]/invoices/new`.
+- Browser-regressed invoice creation, reload, edit, cancel, delete, and cleanup;
+  all observed tRPC requests returned 200 with no console or page errors.
+- Verified onboarding Select changes produce no controlled/uncontrolled warning,
+  and verified the invoice alias on an iPhone 14 viewport.
