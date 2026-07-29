@@ -20,7 +20,7 @@ export class PaymentIssueProcessor extends BaseProcessor<PaymentIssuePayload> {
     const html = await render(PaymentIssueEmail({ fullName, teamName }));
 
     await resend.emails.send({
-      from: "Middaybot <middaybot@midday.ai>",
+      from: "Middaybot <midday@sudosapient.dev>",
       replyTo: "pontus@midday.ai",
       to: email,
       subject: "Your payment didn't go through",

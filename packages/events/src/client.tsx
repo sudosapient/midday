@@ -5,21 +5,32 @@ import {
 } from "@openpanel/nextjs";
 
 const isProd = process.env.NODE_ENV === "production";
+const clientId = process.env.NEXT_PUBLIC_OPENPANEL_CLIENT_ID;
+const isEnabled =
+  isProd && Boolean(clientId && clientId !== "local-disabled");
 
-const Provider = () => (
-  <OpenPanelComponent
-    clientId={process.env.NEXT_PUBLIC_OPENPANEL_CLIENT_ID!}
-    trackAttributes={true}
-    trackScreenViews={isProd}
-    trackOutgoingLinks={isProd}
-  />
-);
+const Provider = () => {
+  if (!isEnabled) {
+    return null;
+  }
+
+  return (
+    <OpenPanelComponent
+      clientId={clientId!}
+      trackAttributes={true}
+      trackScreenViews={true}
+      trackOutgoingLinks={true}
+    />
+  );
+};
 
 const track = (options: { event: string } & TrackProperties) => {
   const { track: openTrack } = useOpenPanel();
 
-  if (!isProd) {
-    console.log("Track", options);
+  if (!isEnabled) {
+    if (!isProd) {
+      console.log("Track", options);
+    }
     return;
   }
 

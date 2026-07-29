@@ -1719,7 +1719,7 @@ function useWeather(): WeatherData | null {
     (async () => {
       try {
         const res = await fetch(`/api/geo?unit=${unit}`);
-        if (cancelled || !res.ok) return;
+        if (cancelled || !res.ok || res.status === 204) return;
         const json = await res.json();
         if (cancelled) return;
 

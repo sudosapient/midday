@@ -39,7 +39,7 @@ export const invoiceSent: NotificationHandler = {
       emailType: "customer",
       to: [data.customerEmail],
       subject,
-      from: `${team.name} <middaybot@midday.ai>`,
+      from: `${team.name} <midday@sudosapient.dev>`,
       data: {
         customerName: data.customerName,
         teamName: team.name,

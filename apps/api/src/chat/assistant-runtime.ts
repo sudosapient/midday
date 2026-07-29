@@ -2,6 +2,7 @@ import { openai } from "@ai-sdk/openai";
 import {
   buildPrepareStep,
   createExecutionClient,
+  ensureToolDefinitions,
   ensureToolIndex,
   getSearchTool,
   getToolDefinitions,
@@ -24,7 +25,12 @@ export async function streamMiddayAssistant(params: {
 }) {
   const { mcpCtx, systemPrompt, modelMessages } = params;
 
-  await ensureToolIndex(mcpCtx);
+  const useToolIndex = process.env.OPENAI_DISABLE_TOOL_INDEX !== "true";
+  if (useToolIndex) {
+    await ensureToolIndex(mcpCtx);
+  } else {
+    await ensureToolDefinitions(mcpCtx);
+  }
 
   const [resolvedClient, composioMetaTools] = await Promise.all([
     createExecutionClient(mcpCtx),
@@ -66,16 +72,18 @@ export async function streamMiddayAssistant(params: {
         ...mcpTools,
         ...composioMetaTools,
         ...webSearchTools,
-        search_tools: getSearchTool(),
+        ...(useToolIndex ? { search_tools: getSearchTool() } : {}),
       },
-      prepareStep: buildPrepareStep({
-        maxTools: 12,
-        alwaysActive: [
-          ...Object.keys(webSearchTools),
-          "search_tools",
-          ...composioToolNames,
-        ],
-      }),
+      prepareStep: useToolIndex
+        ? buildPrepareStep({
+            maxTools: 12,
+            alwaysActive: [
+              ...Object.keys(webSearchTools),
+              "search_tools",
+              ...composioToolNames,
+            ],
+          })
+        : undefined,
       stopWhen: stepCountIs(10),
       onFinish: closeClient,
     });

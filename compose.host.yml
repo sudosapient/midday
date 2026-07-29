@@ -1,0 +1,31 @@
+# Host deployment override. Services bind only to loopback and are published
+# through the server's TLS reverse proxy.
+services:
+  redis:
+    ports: !override
+      - "127.0.0.1:16379:6379"
+
+  api:
+    environment:
+      ALLOWED_API_ORIGINS: ${MIDDAY_PUBLIC_DASHBOARD_URL:-http://127.0.0.1:13001}
+      MIDDAY_DASHBOARD_URL: ${MIDDAY_PUBLIC_DASHBOARD_URL:-http://127.0.0.1:13001}
+      MIDDAY_API_URL: ${MIDDAY_PUBLIC_API_URL:-http://127.0.0.1:13003}
+    ports: !override
+      - "127.0.0.1:13003:8080"
+
+  worker:
+    ports: !override
+      - "127.0.0.1:13004:8080"
+
+  dashboard:
+    build:
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${MIDDAY_PUBLIC_SUPABASE_URL:-http://127.0.0.1:54321}
+        NEXT_PUBLIC_URL: ${MIDDAY_PUBLIC_DASHBOARD_URL:-http://127.0.0.1:13001}
+        NEXT_PUBLIC_API_URL: ${MIDDAY_PUBLIC_API_URL:-http://127.0.0.1:13003}
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${MIDDAY_PUBLIC_SUPABASE_URL:-http://127.0.0.1:54321}
+      NEXT_PUBLIC_URL: ${MIDDAY_PUBLIC_DASHBOARD_URL:-http://127.0.0.1:13001}
+      NEXT_PUBLIC_API_URL: ${MIDDAY_PUBLIC_API_URL:-http://127.0.0.1:13003}
+    ports: !override
+      - "127.0.0.1:13001:3000"

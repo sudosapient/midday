@@ -12,6 +12,11 @@ export const composio = new Composio({
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
 
+function isComposioConfigured(): boolean {
+  const apiKey = process.env.COMPOSIO_API_KEY?.trim();
+  return Boolean(apiKey && apiKey !== "local-disabled");
+}
+
 export async function composioFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${COMPOSIO_API_BASE}${path}`, {
     headers: { "x-api-key": process.env.COMPOSIO_API_KEY! },
@@ -49,6 +54,8 @@ function asToolkitItems(items: unknown[]): ToolkitItem[] {
 const TOOLKIT_CACHE_TTL = 120; // 2 min in seconds
 
 export async function getUserToolkits(userId: string): Promise<ToolkitItem[]> {
+  if (!isComposioConfigured()) return [];
+
   return connectorsCache.getOrSet<ToolkitItem[]>(
     `toolkits:${userId}`,
     TOOLKIT_CACHE_TTL,
@@ -98,7 +105,7 @@ const toolsCache = new LRUCache<string, Record<string, unknown>>({
 export async function getComposioTools(
   userId: string,
 ): Promise<Record<string, never> | Record<string, unknown>> {
-  if (!process.env.COMPOSIO_API_KEY) return {};
+  if (!isComposioConfigured()) return {};
 
   const cached = toolsCache.get(userId);
   if (cached) return cached;

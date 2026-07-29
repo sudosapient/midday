@@ -30,10 +30,22 @@
 -- Remove the legacy unrestricted SELECT policies used by older hosted setups.
 -- PostgreSQL OR-combines permissive policies, so leaving one in place would
 -- make the scoped policy below ineffective for authenticated users.
-DROP POLICY IF EXISTS "Documents can be selected by a member of the team" ON public.documents;
-DROP POLICY IF EXISTS "Inbox can be selected by a member of the team" ON public.inbox;
-DROP POLICY IF EXISTS "Team members can view their insights" ON public.insights;
-DROP POLICY IF EXISTS "Transactions can be selected by a member of the team" ON public.transactions;
+DO $$
+BEGIN
+  IF to_regclass('public.documents') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Documents can be selected by a member of the team" ON public.documents;
+  END IF;
+  IF to_regclass('public.inbox') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Inbox can be selected by a member of the team" ON public.inbox;
+  END IF;
+  IF to_regclass('public.insights') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Team members can view their insights" ON public.insights;
+  END IF;
+  IF to_regclass('public.transactions') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "Transactions can be selected by a member of the team" ON public.transactions;
+  END IF;
+END
+$$;
 
 DO $$
 DECLARE
@@ -73,14 +85,23 @@ $$;
 -- activities is subscribed with `filter: user_id=eq.<me>` (see
 -- hooks/use-notifications.ts), so it is scoped to the calling user's own rows
 -- within their teams rather than to the whole team.
-DROP POLICY IF EXISTS activities_select_own ON public.activities;
+DO $$
+BEGIN
+  IF to_regclass('public.activities') IS NULL THEN
+    RAISE NOTICE 'skipping activities: table does not exist';
+    RETURN;
+  END IF;
 
-CREATE POLICY activities_select_own ON public.activities
-  FOR SELECT
-  TO authenticated
-  USING (
-    user_id = auth.uid()
-    AND team_id IN (SELECT private.get_teams_for_authenticated_user())
-  );
+  DROP POLICY IF EXISTS activities_select_own ON public.activities;
 
-GRANT SELECT ON public.activities TO authenticated;
+  CREATE POLICY activities_select_own ON public.activities
+    FOR SELECT
+    TO authenticated
+    USING (
+      user_id = auth.uid()
+      AND team_id IN (SELECT private.get_teams_for_authenticated_user())
+    );
+
+  GRANT SELECT ON public.activities TO authenticated;
+END
+$$;

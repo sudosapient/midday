@@ -17,6 +17,7 @@ type ToolDefinitions = Awaited<ReturnType<MCPClient["listTools"]>>;
 let cachedDefinitions: ToolDefinitions | null = null;
 let cachedIndex: ToolIndex<any> | null = null;
 let inflightIndexPromise: Promise<ToolIndex<any>> | null = null;
+let inflightDefinitionsPromise: Promise<ToolDefinitions> | null = null;
 
 const embeddingModelName =
   process.env.OPENAI_EMBEDDING_MODEL?.trim() || "text-embedding-3-small";
@@ -52,6 +53,24 @@ async function bootstrapTools(ctx: McpContext) {
   await client.close();
 
   return { definitions, tools };
+}
+
+export function ensureToolDefinitions(
+  ctx: McpContext,
+): Promise<ToolDefinitions> {
+  if (cachedDefinitions) return Promise.resolve(cachedDefinitions);
+  if (inflightDefinitionsPromise) return inflightDefinitionsPromise;
+
+  inflightDefinitionsPromise = bootstrapTools(ctx)
+    .then(({ definitions }) => {
+      cachedDefinitions = definitions;
+      return definitions;
+    })
+    .finally(() => {
+      inflightDefinitionsPromise = null;
+    });
+
+  return inflightDefinitionsPromise;
 }
 
 export function ensureToolIndex(ctx: McpContext): Promise<ToolIndex<any>> {
@@ -166,6 +185,21 @@ export function warmToolIndex(): void {
     dateFormat: null,
     timeFormat: 24,
   };
+
+  if (process.env.OPENAI_DISABLE_TOOL_INDEX === "true") {
+    ensureToolDefinitions(stubCtx)
+      .then(() => {
+        logger.info(
+          "[chat] Embedding tool index disabled; using direct tool exposure",
+        );
+      })
+      .catch((err) => {
+        logger.warn("[chat] Tool definition warm-up failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return;
+  }
 
   ensureToolIndex(stubCtx).catch((err) => {
     logger.warn(
