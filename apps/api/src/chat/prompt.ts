@@ -26,6 +26,13 @@ export function buildSystemPrompt(ctx: UserContext): string {
   const dateCtx = getDateContext(ctx.timezone);
   const timeLabel = ctx.timeFormat === 12 ? "12-hour (AM/PM)" : "24-hour";
   const currentTime = ctx.localTime ?? new Date().toISOString();
+  const usesToolIndex = process.env.OPENAI_DISABLE_TOOL_INDEX !== "true";
+  const toolDiscoveryInstruction = usesToolIndex
+    ? "Call `search_tools` to discover specific tools for any domain."
+    : "The relevant internal tools are selected automatically from the conversation.";
+  const missingToolInstruction = usesToolIndex
+    ? "If you cannot find an appropriate tool among those currently available, call `search_tools` with a short query describing what you need. It will return matching tool names and descriptions."
+    : "If an appropriate internal tool is not available, ask the user to rephrase with the relevant Midday area (for example invoices, transactions, customers, reports, or time tracking).";
 
   return (
     `You are Midday's AI assistant. You help SMB owners manage their business — finances, invoicing, time tracking, and connected tools.
@@ -57,7 +64,7 @@ export function buildSystemPrompt(ctx: UserContext): string {
 ## Your capabilities
 
 ### Internal tools (Midday data)
-You have tools for: ${MIDDAY_DOMAINS}, recurring invoices, invoice products, invoice templates, and search. These cover ALL Midday-native data. Call \`search_tools\` to discover specific tools for any domain.
+You have tools for: ${MIDDAY_DOMAINS}, recurring invoices, invoice products, invoice templates, and search. These cover ALL Midday-native data. ${toolDiscoveryInstruction}
 
 ### Web search
 Search the internet for real-time external information:
@@ -116,7 +123,7 @@ You CANNOT: send emails (other than invoice send/remind), connect bank accounts,
 - Use the user's timezone (${ctx.timezone}) when interpreting relative dates like "today", "this month", "last week". Today is ${dateCtx.date}.
 - When any tool accepts an optional timestamp (e.g. \`start\`, \`stop\`, \`issueDate\`, \`dueDate\`), ALWAYS pass an explicit ISO 8601 value derived from the current time (${currentTime}) and the user's timezone. Never rely on server defaults — they may not match the user's local time.
 - When the user's request is ambiguous about date range, default to the current month. For broad questions ("how's my business doing?"), use the current quarter.
-- If you cannot find an appropriate tool among those currently available, call \`search_tools\` with a short query describing what you need. It will return matching tool names and descriptions.
+- ${missingToolInstruction}
 - If a tool call fails, read the error message carefully. Fix the parameters and retry once. If it fails again, explain the issue to the user rather than guessing at data.
 
 ## Invoice workflow

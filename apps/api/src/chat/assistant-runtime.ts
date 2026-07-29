@@ -1,9 +1,11 @@
 import { openai } from "@ai-sdk/openai";
 import {
+  buildLexicalPrepareStep,
   buildPrepareStep,
   createExecutionClient,
   ensureToolDefinitions,
   ensureToolIndex,
+  getGatewayCompatibleToolDefinitions,
   getSearchTool,
   getToolDefinitions,
 } from "@api/chat/tools";
@@ -45,7 +47,10 @@ export async function streamMiddayAssistant(params: {
   };
 
   try {
-    const mcpTools = resolvedClient.toolsFromDefinitions(getToolDefinitions());
+    const toolDefinitions = useToolIndex
+      ? getToolDefinitions()
+      : getGatewayCompatibleToolDefinitions();
+    const mcpTools = resolvedClient.toolsFromDefinitions(toolDefinitions);
     const composioToolNames = Object.keys(composioMetaTools);
     const webSearchTools: ToolSet = {};
     if (process.env.OPENAI_ENABLE_WEB_SEARCH !== "false") {
@@ -83,7 +88,22 @@ export async function streamMiddayAssistant(params: {
               ...composioToolNames,
             ],
           })
-        : undefined,
+        : buildLexicalPrepareStep({
+            messages: modelMessages,
+            maxTools: 12,
+            alwaysActive: [
+              ...Object.keys(webSearchTools),
+              ...composioToolNames,
+            ],
+          }),
+      // This OpenAI-compatible gateway does not persist Responses API items.
+      // Keeping storage disabled makes the SDK send complete tool-call context
+      // on follow-up steps instead of item references the gateway cannot find.
+      providerOptions: {
+        openai: {
+          store: false,
+        },
+      },
       stopWhen: stepCountIs(10),
       onFinish: closeClient,
     });
