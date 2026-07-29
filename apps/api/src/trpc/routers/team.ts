@@ -12,6 +12,7 @@ import {
   updateTeamMemberSchema,
 } from "@api/schemas/team";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
+import { sendTeamInviteEmails } from "@api/utils/team-invite-email";
 import type { InviteTeamMembersPayload } from "@jobs/schema";
 
 import { teamCache } from "@midday/cache/team-cache";
@@ -32,12 +33,14 @@ import {
   getTeamMemberRole,
   getTeamMembersByTeamId,
   getTeamsByUserId,
+  getUserById,
   hasTeamAccess,
   leaveTeam,
   updateTeamById,
   updateTeamMember,
 } from "@midday/db/queries";
 import { triggerJob } from "@midday/job-client";
+import { logger } from "@midday/logger";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 
@@ -336,38 +339,81 @@ export const teamRouter = createTRPCRouter({
       const results = data?.results ?? [];
       const skippedInvites = data?.skippedInvites ?? [];
 
-      const invites: InviteTeamMembersPayload["invites"] = results.flatMap(
-        (invite) => {
-          if (!invite?.email) {
-            return [];
-          }
-
-          return [
-            {
-              email: invite.email,
-              invitedByName: session.user.full_name ?? "",
-              invitedByEmail,
-              teamName: invite.team?.name ?? "",
-            },
-          ];
-        },
+      const [team, inviter] = await Promise.all([
+        getTeamById(db, teamId!),
+        getUserById(db, session.user.id),
+      ]);
+      const invitedByName =
+        inviter?.fullName ?? session.user.full_name ?? invitedByEmail;
+      const emailableAddresses = new Set(
+        [
+          ...results.flatMap((invite) => (invite?.email ? [invite.email] : [])),
+          ...skippedInvites.flatMap((invite) =>
+            invite.reason === "already_invited" ? [invite.email] : [],
+          ),
+        ].map((email) => email.toLowerCase()),
       );
 
-      // Only trigger email sending if there are valid invites
+      // Re-send existing pending invitations as well as newly created ones.
+      // This makes delivery failures recoverable on the next invite attempt.
+      const uniqueInput = input.filter(
+        (invite, index, all) =>
+          index ===
+          all.findIndex(
+            (candidate) =>
+              candidate.email.toLowerCase() === invite.email.toLowerCase(),
+          ),
+      );
+      const invites: InviteTeamMembersPayload["invites"] = uniqueInput
+        .filter((invite) =>
+          emailableAddresses.has(invite.email.toLowerCase()),
+        )
+        .map((invite) => ({
+          email: invite.email,
+          invitedByName,
+          invitedByEmail,
+          teamName: team?.name ?? "",
+        }));
+
       if (invites.length > 0) {
-        await tasks.trigger("invite-team-members", {
+        const payload = {
           teamId: teamId!,
           invites,
           ip,
           locale: "en",
-        } satisfies InviteTeamMembersPayload);
+        } satisfies InviteTeamMembersPayload;
+        const triggerKey = process.env.TRIGGER_SECRET_KEY?.trim();
+        const canUseTrigger =
+          process.env.NODE_ENV !== "production" ||
+          Boolean(triggerKey && triggerKey !== "local-disabled");
+
+        if (canUseTrigger) {
+          try {
+            await tasks.trigger("invite-team-members", payload);
+          } catch (error) {
+            logger.warn(
+              "[team.invite] Trigger.dev unavailable; sending directly",
+              {
+                error:
+                  error instanceof Error ? error.message : String(error),
+              },
+            );
+            await sendTeamInviteEmails(payload);
+          }
+        } else {
+          await sendTeamInviteEmails(payload);
+        }
       }
+
+      const actuallySkipped = skippedInvites.filter(
+        (invite) => invite.reason !== "already_invited",
+      );
 
       // Return information about the invitation process
       return {
         sent: invites.length,
-        skipped: skippedInvites.length,
-        skippedInvites,
+        skipped: actuallySkipped.length,
+        skippedInvites: actuallySkipped,
       };
     }),
 

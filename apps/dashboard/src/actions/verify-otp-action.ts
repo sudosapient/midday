@@ -71,7 +71,14 @@ export const verifyOtpAction = actionClient
     const trpcClient = await getTRPCClient({ forcePrimary: true });
     const user = await trpcClient.user.me.query();
 
-    if (!user?.fullName || !user.teamId) {
+    if (user?.fullName && !user.teamId) {
+      const invites = await trpcClient.team.invitesByEmail.query();
+      if (invites.length > 0) {
+        redirect(`${getUrl()}/teams`);
+      }
+    }
+
+    if (!user?.fullName || !user?.teamId) {
       redirect(`${getUrl()}/onboarding`);
     }
 

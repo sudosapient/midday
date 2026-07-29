@@ -39,6 +39,15 @@ export default async function Layout({
     redirect("/login");
   }
 
+  if (user.fullName && !user.teamId) {
+    const invites = await queryClient.fetchQuery(
+      trpc.team.invitesByEmail.queryOptions(),
+    );
+    if (invites.length > 0) {
+      redirect("/teams");
+    }
+  }
+
   if (!user.fullName || !user.teamId) {
     redirect("/onboarding");
   }

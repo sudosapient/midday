@@ -86,6 +86,13 @@ export async function GET(req: NextRequest) {
     const trpcClient = await getTRPCClient({ forcePrimary: true });
     const user = await trpcClient.user.me.query();
 
+    if (user?.fullName && !user.teamId) {
+      const invites = await trpcClient.team.invitesByEmail.query();
+      if (invites.length > 0) {
+        return NextResponse.redirect(`${origin}/teams`);
+      }
+    }
+
     const isOnboarding = !user?.fullName || !user.teamId;
     const analytics = await setupAnalytics();
 

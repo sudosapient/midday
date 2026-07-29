@@ -19,6 +19,15 @@ export default async function Page() {
     redirect("/login");
   }
 
+  if (user.fullName && !user.teamId) {
+    const invites = await queryClient.fetchQuery(
+      trpc.team.invitesByEmail.queryOptions(),
+    );
+    if (invites.length > 0) {
+      redirect("/teams");
+    }
+  }
+
   const teams = await queryClient.fetchQuery(trpc.team.list.queryOptions());
   const hasOtherTeams = (teams?.length ?? 0) > 1;
 
