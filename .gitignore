@@ -93,3 +93,6 @@ dist-ssr
 
 # Toolpick embedding cache (auto-generated on first boot)
 .toolpick-cache*.json
+
+# Local operational scripts
+scripts/local/

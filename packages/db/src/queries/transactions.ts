@@ -22,7 +22,7 @@ import {
 } from "drizzle-orm";
 import type { SQL } from "drizzle-orm/sql/sql";
 import { nanoid } from "nanoid";
-import type { Database } from "../client";
+import type { Database, DatabaseOrTransaction } from "../client";
 import {
   accountingSyncRecords,
   bankAccounts,
@@ -934,22 +934,73 @@ type DeleteTransactionsParams = {
   ids: string[];
 };
 
+async function adjustManualBankAccountBalance(
+  db: DatabaseOrTransaction,
+  params: {
+    bankAccountId: string | null;
+    teamId: string;
+    delta: number;
+  },
+) {
+  if (!params.bankAccountId || params.delta === 0) {
+    return;
+  }
+
+  await db
+    .update(bankAccounts)
+    .set({
+      balance: sql<number>`coalesce(${bankAccounts.balance}, 0) + ${params.delta}`,
+    })
+    .where(
+      and(
+        eq(bankAccounts.id, params.bankAccountId),
+        eq(bankAccounts.teamId, params.teamId),
+        eq(bankAccounts.manual, true),
+      ),
+    );
+}
+
 export async function deleteTransactions(
   db: Database,
   params: DeleteTransactionsParams,
 ) {
-  return db
-    .delete(transactions)
-    .where(
-      and(
-        inArray(transactions.id, params.ids),
-        eq(transactions.manual, true),
-        eq(transactions.teamId, params.teamId),
-      ),
-    )
-    .returning({
-      id: transactions.id,
-    });
+  return db.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(transactions)
+      .where(
+        and(
+          inArray(transactions.id, params.ids),
+          eq(transactions.manual, true),
+          eq(transactions.teamId, params.teamId),
+        ),
+      )
+      .returning({
+        id: transactions.id,
+        amount: transactions.amount,
+        bankAccountId: transactions.bankAccountId,
+      });
+
+    const accountDeltas = new Map<string, number>();
+    for (const transaction of deleted) {
+      if (transaction.bankAccountId) {
+        accountDeltas.set(
+          transaction.bankAccountId,
+          (accountDeltas.get(transaction.bankAccountId) ?? 0) -
+            transaction.amount,
+        );
+      }
+    }
+
+    for (const [bankAccountId, delta] of accountDeltas) {
+      await adjustManualBankAccountBalance(tx, {
+        bankAccountId,
+        teamId: params.teamId,
+        delta,
+      });
+    }
+
+    return deleted.map(({ id }) => ({ id }));
+  });
 }
 
 export async function deleteTransactionsByInternalIds(
@@ -1548,13 +1599,60 @@ export async function updateTransaction(
     dataToUpdate.taxType = null;
   }
 
-  const [result] = await db
-    .update(transactions)
-    .set(dataToUpdate)
-    .where(and(eq(transactions.id, id), eq(transactions.teamId, teamId)))
-    .returning({
-      id: transactions.id,
-    });
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({
+        id: transactions.id,
+        amount: transactions.amount,
+        bankAccountId: transactions.bankAccountId,
+        manual: transactions.manual,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.id, id), eq(transactions.teamId, teamId)))
+      .limit(1)
+      .for("update");
+
+    if (!existing) {
+      return null;
+    }
+
+    const [updated] = await tx
+      .update(transactions)
+      .set(dataToUpdate)
+      .where(and(eq(transactions.id, id), eq(transactions.teamId, teamId)))
+      .returning({
+        id: transactions.id,
+        amount: transactions.amount,
+        bankAccountId: transactions.bankAccountId,
+      });
+
+    if (!updated) {
+      return null;
+    }
+
+    if (existing.manual) {
+      if (existing.bankAccountId === updated.bankAccountId) {
+        await adjustManualBankAccountBalance(tx, {
+          bankAccountId: updated.bankAccountId,
+          teamId,
+          delta: updated.amount - existing.amount,
+        });
+      } else {
+        await adjustManualBankAccountBalance(tx, {
+          bankAccountId: existing.bankAccountId,
+          teamId,
+          delta: -existing.amount,
+        });
+        await adjustManualBankAccountBalance(tx, {
+          bankAccountId: updated.bankAccountId,
+          teamId,
+          delta: updated.amount,
+        });
+      }
+    }
+
+    return { id: updated.id };
+  });
 
   if (!result) {
     return null;
@@ -1849,23 +1947,35 @@ export async function createTransaction(
     ...rest
   } = params;
 
-  const [result] = await db
-    .insert(transactions)
-    .values({
-      ...rest,
-      teamId,
-      bankAccountId,
-      categorySlug,
-      assignedId,
-      method: "other",
-      manual: true,
-      notified: true,
-      status: "posted",
-      internalId: `${teamId}_${nanoid()}`,
-    })
-    .returning({
-      id: transactions.id,
-    });
+  const result = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(transactions)
+      .values({
+        ...rest,
+        teamId,
+        bankAccountId,
+        categorySlug,
+        assignedId,
+        method: "other",
+        manual: true,
+        notified: true,
+        status: "posted",
+        internalId: `${teamId}_${nanoid()}`,
+      })
+      .returning({
+        id: transactions.id,
+      });
+
+    if (created) {
+      await adjustManualBankAccountBalance(tx, {
+        bankAccountId,
+        teamId,
+        delta: rest.amount,
+      });
+    }
+
+    return created;
+  });
 
   if (!result) {
     return null;
@@ -1902,13 +2012,39 @@ export async function createTransactions(
     },
   );
 
-  const results = await db
-    .insert(transactions)
-    .values(transactionsToInsert)
-    .returning({
-      id: transactions.id,
-      teamId: transactions.teamId,
-    });
+  if (transactionsToInsert.length === 0) {
+    return [];
+  }
+
+  const results = await db.transaction(async (tx) => {
+    const created = await tx
+      .insert(transactions)
+      .values(transactionsToInsert)
+      .returning({
+        id: transactions.id,
+        teamId: transactions.teamId,
+      });
+
+    const accountDeltas = new Map<
+      string,
+      { bankAccountId: string; teamId: string; delta: number }
+    >();
+    for (const transaction of params) {
+      const key = `${transaction.teamId}:${transaction.bankAccountId}`;
+      const current = accountDeltas.get(key);
+      accountDeltas.set(key, {
+        bankAccountId: transaction.bankAccountId,
+        teamId: transaction.teamId,
+        delta: (current?.delta ?? 0) + transaction.amount,
+      });
+    }
+
+    for (const delta of accountDeltas.values()) {
+      await adjustManualBankAccountBalance(tx, delta);
+    }
+
+    return created;
+  });
 
   // Get full transaction data for each created transaction
   const fullTransactions = await Promise.all(
