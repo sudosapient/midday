@@ -195,6 +195,7 @@ export function RunwayChart({
                 />
               }
               wrapperStyle={{ zIndex: 9999 }}
+              cursor={false}
             />
 
             {isMonthsMode ? (
@@ -223,10 +224,25 @@ export function RunwayChart({
                   dataKey="cashRemaining"
                   usePattern={false}
                   useGradient
+                  activeDot={{
+                    r: 5,
+                    fill: "var(--chart-actual-line)",
+                    stroke: "var(--chart-actual-line)",
+                    strokeWidth: 2,
+                  }}
                 />
-                <StyledArea dataKey="burnRate" usePattern useGradient={false} />
+                <StyledArea
+                  dataKey="burnRate"
+                  usePattern
+                  useGradient={false}
+                  activeDot={false}
+                />
                 {showProjection && (
-                  <StyledLine dataKey="projectedCash" strokeDasharray="5 5" />
+                  <StyledLine
+                    dataKey="projectedCash"
+                    strokeDasharray="5 5"
+                    activeDot={false}
+                  />
                 )}
               </>
             )}

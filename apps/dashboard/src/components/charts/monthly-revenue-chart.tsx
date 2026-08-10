@@ -130,17 +130,26 @@ export function MonthlyRevenueChart({
             <Tooltip
               content={<CustomTooltip currency={currency} locale={locale} />}
               wrapperStyle={{ zIndex: 9999 }}
+              cursor={false}
             />
             {/* Last Year bars */}
             <Bar
               dataKey="lastYearAmount"
               fill="var(--chart-bar-fill-secondary)"
+              activeBar={{
+                stroke: "var(--chart-tooltip-cursor)",
+                strokeWidth: 2,
+              }}
               isAnimationActive={false}
             />
             {/* This Year bars */}
             <Bar
               dataKey="amount"
               fill="var(--chart-bar-fill)"
+              activeBar={{
+                stroke: "var(--chart-tooltip-cursor)",
+                strokeWidth: 2,
+              }}
               isAnimationActive={false}
             />
             {/* Average line */}
@@ -151,6 +160,7 @@ export function MonthlyRevenueChart({
               strokeWidth={1}
               strokeDasharray="5 5"
               dot={false}
+              activeDot={false}
               isAnimationActive={false}
             />
           </ComposedChart>

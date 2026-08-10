@@ -144,6 +144,7 @@ export function BurnRateChart({
             <Tooltip
               content={<CustomTooltip currency={currency} locale={locale} />}
               wrapperStyle={{ zIndex: 9999 }}
+              cursor={false}
             />
             <Area
               type="monotone"
@@ -171,6 +172,7 @@ export function BurnRateChart({
               strokeWidth={1}
               strokeDasharray="5 5"
               dot={false}
+              activeDot={false}
               isAnimationActive={false}
             />
           </ComposedChart>

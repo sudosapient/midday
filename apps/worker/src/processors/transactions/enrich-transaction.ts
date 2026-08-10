@@ -1,4 +1,4 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import {
   getTransactionsForEnrichment,
   markTransactionsAsEnriched,
@@ -20,13 +20,15 @@ import { BaseProcessor } from "../base";
 
 const BATCH_SIZE = 50;
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+const openai = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+  baseURL: process.env.OPENAI_BASE_URL,
 });
 
 /**
  * Enriches transactions with AI (merchant names, categories)
- * Uses Google Generative AI (Gemini) to extract merchant names and categorize transactions
+ * Uses the configured OpenAI-compatible provider to extract merchant names and
+ * categorize transactions.
  */
 export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactionsPayload> {
   async process(job: Job<EnrichTransactionsPayload>): Promise<{
@@ -74,7 +76,7 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
 
         try {
           const { object } = await generateObject({
-            model: google("gemini-2.5-flash-lite"),
+            model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
             prompt,
             output: "array",
             schema: enrichmentSchema,
@@ -206,51 +208,10 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
             teamId,
           });
 
-          // Even if enrichment fails, mark all transactions as completed to prevent infinite loading
-          // The enrichment_completed field indicates process completion, not success
-          try {
-            // Defensive handling for potentially falsy transactions
-            const validTransactionIds = batch
-              .filter((tx) => tx?.id)
-              .map((tx) => tx.id);
-
-            await markTransactionsAsEnriched(db, validTransactionIds);
-
-            this.logger.info(
-              "Marked failed batch transactions as completed to prevent infinite loading",
-              {
-                count: validTransactionIds.length,
-                reason: "enrichment_process_failed_but_completed",
-                teamId,
-              },
-            );
-
-            // Only add transactions that weren't already counted in batchEnrichedCount
-            // If batchEnrichedCount > 0, some transactions were already processed and counted
-            const uncountedTransactions =
-              validTransactionIds.length - batchEnrichedCount;
-            if (uncountedTransactions > 0) {
-              totalEnriched += uncountedTransactions;
-            }
-
-            // Return the valid transaction IDs even though enrichment failed
-            return validTransactionIds;
-          } catch (markError) {
-            this.logger.error(
-              "Failed to mark transactions as completed after enrichment error",
-              {
-                markError:
-                  markError instanceof Error
-                    ? markError.message
-                    : "Unknown error",
-                originalError:
-                  error instanceof Error ? error.message : "Unknown error",
-                batchSize: batch.length,
-                teamId,
-              },
-            );
-            throw error; // Re-throw original error
-          }
+          // Keep enrichmentCompleted false on failures. This lets BullMQ retry
+          // transient provider errors and ensures the UI does not present a
+          // failed enrichment as a completed classification.
+          throw error;
         }
       },
     );

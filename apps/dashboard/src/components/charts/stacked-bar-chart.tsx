@@ -225,6 +225,7 @@ export function StackedBarChart({
               strokeWidth={2.5}
               stroke="hsl(var(--border))"
               dot={false}
+              activeDot={false}
             />
           </ComposedChart>
         </ResponsiveContainer>

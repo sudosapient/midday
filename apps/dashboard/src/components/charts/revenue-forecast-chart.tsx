@@ -355,6 +355,7 @@ export function RevenueForecastChart({
                 fill="var(--chart-forecast-line)"
                 fillOpacity={0.1}
                 stroke="none"
+                activeDot={false}
                 isAnimationActive={false}
                 connectNulls={false}
               />
