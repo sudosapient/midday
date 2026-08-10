@@ -1,14 +1,10 @@
 "use client";
 
-import { Button } from "@midday/ui/button";
-import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { updateMetricsSettingsAction } from "@/actions/update-metrics-settings-action";
 import { useMetricsFilter } from "@/hooks/use-metrics-filter";
 import { useUserQuery } from "@/hooks/use-user";
-import { useTRPC } from "@/trpc/client";
 import { BurnRateCard } from "./cards/burn-rate-card";
 import { CashBalanceCard } from "./cards/cash-balance-card";
 import { CategoryExpensesCard } from "./cards/category-expenses-card";
@@ -113,11 +109,7 @@ export function MetricsView({
   initialLayout,
   isEditing = false,
 }: MetricsViewProps) {
-  const trpc = useTRPC();
   const { data: user } = useUserQuery();
-  const { data: connections } = useQuery(
-    trpc.bankConnections.get.queryOptions(),
-  );
   const { from, to, currency, revenueType } = useMetricsFilter();
   const [layout, setLayout] = useState<ChartLayoutItem[]>(
     initialLayout ?? DEFAULT_CHART_LAYOUT,
@@ -161,10 +153,6 @@ export function MetricsView({
       })),
     ];
   }, [layout]);
-
-  const [_, setStep] = useQueryState("step");
-  const hasConnections = connections && connections.length > 0;
-  const showConnectOverlay = connections !== undefined && !hasConnections;
 
   const renderChart = (chartId: ChartId, index: number) => {
     const commonProps = {
@@ -212,30 +200,7 @@ export function MetricsView({
         isEditing={isEditing}
         onResize={(newColSpan) => handleResizeChart(chartId, newColSpan)}
       >
-        {showConnectOverlay ? (
-          <div
-            className="relative overflow-hidden group/connect cursor-pointer border border-border bg-background"
-            onClick={() => setStep("connect")}
-            onKeyDown={(e) => e.key === "Enter" && setStep("connect")}
-            role="button"
-            tabIndex={0}
-          >
-            <div className="transition-all duration-200 group-hover/connect:blur-[7px] group-hover/connect:opacity-20 group-hover/connect:pointer-events-none group-hover/connect:select-none [&>*]:border-0">
-              {chartContent}
-            </div>
-            <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 pointer-events-none group-hover/connect:opacity-100 transition-opacity duration-200">
-              <div className="text-center flex flex-col items-center">
-                <h2 className="text-lg font-medium mb-2">No data available</h2>
-                <p className="text-sm text-[#878787] mb-4">
-                  Connect your bank account to unlock this metric.
-                </p>
-                <Button>Connect Bank</Button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          chartContent
-        )}
+        {chartContent}
       </DraggableChartCard>
     );
   };
