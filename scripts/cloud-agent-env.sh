@@ -6,7 +6,19 @@ cd "$ROOT_DIR"
 
 export PATH="${HOME}/.bun/bin:${PATH}"
 
-eval "$(bunx supabase status -o env 2>/dev/null | grep -v '^WARN')"
+for _ in $(seq 1 60); do
+  if status_env="$(bunx supabase status -o env 2>/dev/null | grep -v '^WARN')" \
+    && [[ "$status_env" == *PUBLISHABLE_KEY=* ]]; then
+    eval "$status_env"
+    break
+  fi
+  sleep 2
+done
+
+if [[ -z "${PUBLISHABLE_KEY:-}" ]]; then
+  echo "Supabase status is missing PUBLISHABLE_KEY" >&2
+  exit 1
+fi
 
 SERVER_ACTIONS_KEY="${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-$(openssl rand -base64 32)}"
 FILE_KEY_SECRET="${FILE_KEY_SECRET:-local-dev-file-key-secret}"

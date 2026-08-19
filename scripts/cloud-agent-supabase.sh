@@ -8,39 +8,50 @@ export PATH="${HOME}/.bun/bin:${PATH}"
 
 LAST_MIGRATION="supabase/migrations/20260715000400_fix_local_schema.sql"
 MIGRATION_BACKUP="/tmp/midday-last-supabase-migration.sql"
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 
-bunx supabase stop >/dev/null 2>&1 || true
+restore_last_migration() {
+  if [[ -f "$MIGRATION_BACKUP" ]]; then
+    mv "$MIGRATION_BACKUP" "$LAST_MIGRATION"
+  fi
+}
+
+bunx supabase stop --no-backup >/dev/null 2>&1 || true
 
 if [[ -f "$LAST_MIGRATION" ]]; then
   cp "$LAST_MIGRATION" "$MIGRATION_BACKUP"
   rm "$LAST_MIGRATION"
 fi
 
-if ! bunx supabase db start; then
-  if [[ -f "$MIGRATION_BACKUP" ]]; then
-    mv "$MIGRATION_BACKUP" "$LAST_MIGRATION"
-  fi
+if ! bunx supabase start; then
+  restore_last_migration
   exit 1
 fi
 
 (
   cd packages/db
-  DATABASE_SESSION_POOLER="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-    bun run db:bootstrap
-  DATABASE_SESSION_POOLER="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
-    bunx drizzle-kit push --config=drizzle.config.push.ts --force
+  DATABASE_SESSION_POOLER="$DATABASE_URL" bun run db:bootstrap
+
+  if ! PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -tAc \
+    "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tracker_projects'" \
+    | grep -q 1; then
+    DATABASE_SESSION_POOLER="$DATABASE_URL" bun run db:push
+  fi
 )
 
 if [[ -f "$MIGRATION_BACKUP" ]]; then
-  mv "$MIGRATION_BACKUP" "$LAST_MIGRATION"
+  restore_last_migration
   bunx supabase migration up
 fi
 
-for _ in $(seq 1 90); do
-  if bunx supabase start >/dev/null 2>&1; then
+for _ in $(seq 1 60); do
+  if bunx supabase status -o env 2>/dev/null | grep -q '^PUBLISHABLE_KEY='; then
     break
   fi
   sleep 2
 done
 
-bunx supabase status >/dev/null
+if ! bunx supabase status -o env 2>/dev/null | grep -q '^PUBLISHABLE_KEY='; then
+  echo "Supabase did not become ready" >&2
+  exit 1
+fi
