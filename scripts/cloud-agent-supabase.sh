@@ -36,4 +36,14 @@ if ! bunx supabase status >/dev/null 2>&1; then
   fi
 fi
 
-bunx supabase start
+for _ in $(seq 1 60); do
+  if bunx supabase status >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+
+if ! bunx supabase start; then
+  sleep 5
+  bunx supabase start
+fi

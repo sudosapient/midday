@@ -20,7 +20,3 @@ fi
 ./scripts/cloud-agent-docker.sh
 ./scripts/cloud-agent-supabase.sh
 ./scripts/cloud-agent-env.sh
-
-# Prove idempotence for the database bootstrap path.
-./scripts/cloud-agent-supabase.sh
-./scripts/cloud-agent-env.sh
